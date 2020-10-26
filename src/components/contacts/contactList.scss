@@ -1,0 +1,17 @@
+#contactList {
+  .list-group-item {
+    &:not(.loading):first-child {
+      padding: 0;
+      input {
+        border: none;
+        z-index: 2;
+        position: relative;
+      }
+    }
+    &:not(.no-hover):not(:first-child) {
+      border-radius: 0;
+      cursor: pointer;
+      user-select: none;
+    }
+  }
+}
