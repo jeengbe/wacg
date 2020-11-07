@@ -13,8 +13,9 @@ export interface ContactListState {
 export interface IContactData {
   displayName: string;
   jid: string;
-  number: string;
+  info: string;
   shown: boolean;
+  type: "contact" | "group";
 }
 
 class ContactList extends React.Component<ContactListProps, ContactListState> {
@@ -45,15 +46,15 @@ class ContactList extends React.Component<ContactListProps, ContactListState> {
     this.fetchData();
   }
 
-  toggleShown(jid: string) {
+  toggleShown(jid: string, type: IContactData["type"]) {
     const i = this.state.contacts.findIndex(con => con.jid === jid);
     const con = this.state.contacts[i];
     if (!con.shown) {
       con.shown = true;
-      EE.emit("add-jid", con.jid);
+      EE.emit("add-jid", con.jid, type);
     } else {
       con.shown = false;
-      EE.emit("remove-jid", con.jid);
+      EE.emit("remove-jid", con.jid, type);
     }
     this.setState(s => {
       let cons = s.contacts;
@@ -100,10 +101,10 @@ class ContactList extends React.Component<ContactListProps, ContactListState> {
       .filter(con => con.displayName.match(filterRegEx))
       .sort((a, b) => a.shown ? -1 : b.shown ? 1 : 0)
       .map(con => (
-        <li key={con.jid} className={"list-group-item" + (con.shown ? " active" : "")} onClick={() => this.toggleShown(con.jid)}>
+        <li key={con.jid} className={"list-group-item" + (con.shown ? " active" : "")} onClick={() => this.toggleShown(con.jid, con.type)}>
           {con.displayName}
           <br />
-          {con.number}
+          <p className="text-secondard small">{con.info}</p>
         </li>
       ));
 

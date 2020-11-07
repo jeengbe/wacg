@@ -2,15 +2,16 @@ import Chart, { ChartDataSets, ChartPoint } from "chart.js";
 import "chartjs-plugin-zoom";
 import moment from "moment";
 import React from "react";
-import { EE, URL_BASE } from "../..";
+import { EE, URL_BASE } from "../../..";
+import { IContactData } from "../../contacts/contactList";
 
-export interface MsgsPerWeekProps {}
+export interface MsgLengthAvgWeekProps {}
 
-export interface MsgsPerWeekState {
+export interface MsgLengthAvgWeekState {
   date: String;
 }
 
-export default class MsgsPerWeek extends React.Component<MsgsPerWeekProps, MsgsPerWeekState> {
+export default class MsgLengthAvgWeek extends React.Component<MsgLengthAvgWeekProps, MsgLengthAvgWeekState> {
   ref: React.RefObject<HTMLCanvasElement>;
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
@@ -21,7 +22,7 @@ export default class MsgsPerWeek extends React.Component<MsgsPerWeekProps, MsgsP
     options: {
       title: {
         display: true,
-        text: "Messages per Week",
+        text: "Average message length",
       },
       spanGaps: false,
       // animation: {
@@ -37,19 +38,19 @@ export default class MsgsPerWeek extends React.Component<MsgsPerWeekProps, MsgsP
         callbacks: {
           title: (item, data) => {
             const start = moment(item[0].xLabel, "MMM DD, YYYY, h:mm:ss a").format("DD.MM.YYYY");
-            const end = moment(start, "DD.MM.YYYY").add(1, "week").format("DD.MM.YYYY");
+            const end = moment(start, "DD.MM.YYYY").add(6, "days").format("DD.MM.YYYY");
             return start + " - " + end;
           },
           label: (item, data) => {
             if (item.datasetIndex > 0) {
               let tooltip = "";
-              tooltip += " " + data.datasets[item.datasetIndex].label + ": " + item.value;
+              tooltip += " " + data.datasets[item.datasetIndex].label + ": " + item.value + " Characters";
               // tooltip += " (" + Math.floor(tooltipItem.y / data.datasets[0].) * 100 + "%)";
               return tooltip;
             }
             return null;
           },
-          footer: (item, data) => "Total: " + item[0].yLabel,
+          footer: (item, data) => "Average: " + parseFloat(item[0].yLabel.toString()).toFixed(3),
         },
       },
       scales: {
@@ -64,7 +65,7 @@ export default class MsgsPerWeek extends React.Component<MsgsPerWeekProps, MsgsP
             },
             ticks: {
               // Next monday
-              max: moment().add(7 - (moment().day() + 6), "days"),
+              max: moment().add(8 - moment().day(), "days"),
             },
           },
         ],
@@ -94,7 +95,7 @@ export default class MsgsPerWeek extends React.Component<MsgsPerWeekProps, MsgsP
     data: {
       datasets: [
         {
-          label: "Total",
+          label: "Average",
           borderColor: "rgba(189,189,189,0.5)",
           backgroundColor: "rgba(189,189,189,0.15)",
           fill: true,
@@ -105,24 +106,23 @@ export default class MsgsPerWeek extends React.Component<MsgsPerWeekProps, MsgsP
     },
   };
 
-  totalData: { [key: number]: number } = {};
-
-  constructor(props: MsgsPerWeekProps) {
+  constructor(props: MsgLengthAvgWeekState) {
     super(props);
     this.ref = React.createRef();
     this.state = {
       date: null,
     };
 
-    EE.on("add-jid", jid => {
+    EE.on("add-jid", (jid: string, type: IContactData["type"]) => {
       (async () => {
         /*
          * Start loading
          */
         let body = new FormData();
-        body.append("jid", jid);
+        body.append("jid",  jid);
+        body.append("type", type);
         body.append("sets", this.config.data.datasets.length.toString());
-        const r = await fetch(URL_BASE + "msgsPerWeek", {
+        const r = await fetch(URL_BASE + "MsgLengthAvgWeek", {
           method: "POST",
           body: body,
         });
@@ -135,24 +135,26 @@ export default class MsgsPerWeek extends React.Component<MsgsPerWeekProps, MsgsP
         data.datasets.forEach(set => (set["jid"] = jid));
         this.config.data.datasets.push(...data.datasets);
 
-        data.datasets.forEach((set: Chart.ChartDataSets) => {
+        let totalData: { [key: number]: number[] } = {};
+
+        this.config.data.datasets.slice(1).forEach((set: Chart.ChartDataSets) => {
           set.data.forEach(value => {
             value = value as ChartPoint;
-            this.totalData[value.x] = this.totalData[value.x] || 0;
-            this.totalData[value.x] += value.y;
+            totalData[value.x] = totalData[value.x] || [];
+            totalData[value.x].push(value.y);
           });
         });
 
         const sortedData = {};
-        Object.keys(this.totalData)
+        Object.keys(totalData)
           .sort()
-          .forEach(key => (sortedData[key] = this.totalData[key]));
+          .forEach(key => (sortedData[key] = totalData[key]));
 
         let total = [];
         for (const key in sortedData) {
           total.push({
             x: parseInt(key),
-            y: sortedData[key],
+            y: sortedData[key].length === 0 ? 0 : sortedData[key].reduce((a, b) => a + b, 0) / sortedData[key].length,
           });
         }
 
@@ -166,20 +168,11 @@ export default class MsgsPerWeek extends React.Component<MsgsPerWeekProps, MsgsP
       })();
     });
     EE.on("remove-jid", jid => {
-      let remove: ChartDataSets[] = this.config.data.datasets.filter(set => set["jid"] === jid);
-
-      remove.forEach(set => {
-        set.data.forEach(value => {
-          value = value as ChartPoint;
-          this.totalData[value.x] -= value.y;
-        });
-      });
-
       this.config.data.datasets = this.config.data.datasets.filter(set => set["jid"] !== jid);
 
       let minKey = Infinity;
 
-      this.config.data.datasets.forEach((set, index) => {
+      this.config.data.datasets.slice(1).forEach((set, index) => {
         if (index > 0) {
           set.data.forEach(value => {
             value = value as ChartPoint;
@@ -188,22 +181,29 @@ export default class MsgsPerWeek extends React.Component<MsgsPerWeekProps, MsgsP
         }
       });
 
-      Object.keys(this.totalData)
-        .filter(key => parseInt(key) < minKey)
-        .forEach(key => delete this.totalData[key]);
+      let totalData: { [key: number]: number[] } = {};
+
+      this.config.data.datasets.forEach((set: Chart.ChartDataSets) => {
+        set.data.forEach(value => {
+          value = value as ChartPoint;
+          totalData[value.x] = totalData[value.x] || [];
+          totalData[value.x].push(value.y);
+        });
+      });
 
       const sortedData = {};
-      Object.keys(this.totalData)
+      Object.keys(totalData)
         .sort()
-        .forEach(key => (sortedData[key] = this.totalData[key]));
+        .forEach(key => (sortedData[key] = totalData[key]));
 
       let total = [];
       for (const key in sortedData) {
         total.push({
           x: parseInt(key),
-          y: sortedData[key],
+          y: sortedData[key].length === 0 ? 0 : sortedData[key].reduce((a, b) => a + b, 0) / sortedData[key].length,
         });
       }
+
       this.config.data.datasets[0].data = total;
 
       this.chart.update();

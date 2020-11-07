@@ -1,14 +1,15 @@
 import Chart, { ChartDataSets } from "chart.js";
 import React from "react";
-import { EE, URL_BASE } from "../..";
+import { EE, URL_BASE } from "../../..";
+import { IContactData } from "../../contacts/contactList";
 
-export interface MsgTimesProps {}
+export interface MsgLengthAvgTimeProps {}
 
-export interface MsgTimesState {
+export interface MsgLenthAvgTimeState {
   date: String;
 }
 
-export default class MsgTimes extends React.Component<MsgTimesProps, MsgTimesState> {
+export default class MsgLengthAvgTime extends React.Component<MsgLengthAvgTimeProps, MsgLenthAvgTimeState> {
   ref: React.RefObject<HTMLCanvasElement>;
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
@@ -19,7 +20,7 @@ export default class MsgTimes extends React.Component<MsgTimesProps, MsgTimesSta
     options: {
       title: {
         display: true,
-        text: "Messages per Time",
+        text: "Average message length",
       },
       spanGaps: false,
       // animation: {
@@ -33,19 +34,16 @@ export default class MsgTimes extends React.Component<MsgTimesProps, MsgTimesSta
       tooltips: {
         mode: "index",
         callbacks: {
-          title: (item, data) => {
-            return String(Math.floor(item[0].index / 6)).padStart(2, "0") + ":" + String((item[0].index % 6) * 10).padStart(2, "0") + " - " + String(Math.floor((item[0].index + 1) / 6)).padStart(2, "0") + ":" + String(((item[0].index + 1) % 6) * 10).padStart(2, "0");
-          },
           label: (item, data) => {
             if (item.datasetIndex > 0) {
               let tooltip = "";
-              tooltip += " " + data.datasets[item.datasetIndex].label + ": " + item.value;
+              tooltip += " " + data.datasets[item.datasetIndex].label + ": " + item.value + " characters";
               // tooltip += " (" + Math.floor(tooltipItem.y / data.datasets[0].) * 100 + "%)";
               return tooltip;
             }
             return null;
           },
-          footer: (item, data) => "Total: " + item[0].yLabel,
+          footer: (item, data) => "Average: " + parseFloat(item[0].yLabel.toString()).toFixed(3),
         },
       },
       scales: {
@@ -67,36 +65,35 @@ export default class MsgTimes extends React.Component<MsgTimesProps, MsgTimesSta
           fill: true,
           pointRadius: 2,
           pointHoverRadius: 2,
-          data: new Array(24 * 6).fill(0),
+          data: new Array(24).fill(0),
         },
       ],
       labels: (() => {
         const labels = [];
-        for (let h = 0; h < 24; h++) {
-          for (let m = 0; m < 6; m++) {
-            labels.push(String(h).padStart(2, "0") + ":" + String(m * 10).padStart(2, "0"));
-          }
+        for (let h = 0; h <= 24; h++) {
+          labels.push(String(h).padStart(2, "0") + ":00");
         }
         return labels;
       })(),
     },
   };
 
-  constructor(props: MsgTimesProps) {
+  constructor(props: MsgLengthAvgTimeProps) {
     super(props);
     this.ref = React.createRef();
     this.state = {
       date: null,
     };
-    EE.on("add-jid", jid => {
+    EE.on("add-jid", (jid: string, type: IContactData["type"]) => {
       (async () => {
         /*
          * Start loading
          */
         let body = new FormData();
-        body.append("jid", jid);
+        body.append("jid",  jid);
+        body.append("type", type);
         body.append("sets", this.config.data.datasets.length.toString());
-        const r = await fetch(URL_BASE + "msgTimes", {
+        const r = await fetch(URL_BASE + "MsgLengthAvgTime", {
           method: "POST",
           body: body,
         });
@@ -106,15 +103,24 @@ export default class MsgTimes extends React.Component<MsgTimesProps, MsgTimesSta
           date: string;
         } = await r.json();
 
-        data.datasets.forEach(set => (set["jid"] = jid));
+        data.datasets.forEach(set => set["jid"] = jid);
+        data.datasets.forEach(set => set.data.push(set.data[0] as any))
         this.config.data.datasets.push(...data.datasets);
+        let totalData: { [key: number]: number[] } = {};
 
-        data.datasets.forEach((set: Chart.ChartDataSets) => {
+        this.config.data.datasets.slice(1).forEach((set: Chart.ChartDataSets) => {
           set.data.forEach((value, index) => {
-            this.config.data.datasets[0].data[index] = this.config.data.datasets[0].data[index] || 0;
-            this.config.data.datasets[0].data[index] += value;
+            totalData[index] = totalData[index] || [];
+            totalData[index].push(value);
           });
         });
+
+        let total = [];
+        for (const key in totalData) {
+          total[key] = totalData[key].length === 0 ? 0 : totalData[key].reduce((a, b) => a + b, 0) / totalData[key].length;
+        }
+
+        this.config.data.datasets[0].data = total;
 
         this.chart["source"] = data["date"];
         this.chart.update();
@@ -125,15 +131,23 @@ export default class MsgTimes extends React.Component<MsgTimesProps, MsgTimesSta
       })();
     });
     EE.on("remove-jid", jid => {
-      let remove: ChartDataSets[] = this.config.data.datasets.filter(set => set["jid"] === jid);
+      this.config.data.datasets = this.config.data.datasets.filter(set => set["jid"] !== jid);
 
-      remove.forEach(set => {
+      let totalData: { [key: number]: number[] } = {};
+
+      this.config.data.datasets.slice(1).forEach((set: Chart.ChartDataSets) => {
         set.data.forEach((value, index) => {
-          (this.config.data.datasets[0].data[index] as number) -= value;
+          totalData[index] = totalData[value] || [];
+          totalData[index].push(value);
         });
       });
 
-      this.config.data.datasets = this.config.data.datasets.filter(set => set["jid"] !== jid);
+      let total = [];
+      for (const key in totalData) {
+        total[key] = totalData[key].length === 0 ? 0 : totalData[key].reduce((a, b) => a + b, 0) / totalData[key].length;
+      }
+
+      this.config.data.datasets[0].data = total;
 
       this.chart.update();
     });

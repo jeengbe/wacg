@@ -7,7 +7,7 @@ Chart.pluginService.register({
       let ctx = chart.canvas.getContext("2d");
       ctx.fillStyle = "#666";
       ctx.font = "12px Open Sans";
-      ctx.fillText("Source: " + moment(chart["source"]).format("D.M.Y HH:mm"), 4, 8);
+      ctx.fillText("Source: " + moment(chart["source"]).format("DD.MM.YYYY HH:mm"), 4, 8);
     }
   },
 });

@@ -1,9 +1,13 @@
 import React from "react";
 
 import "./charts.scss";
-import MsgsPerWeek from "./msgsPerWeek";
-import MsgTimes from "./msgTimes";
-import "./chartMisc";
+import "./chartMisc.ts";
+
+import MsgTotalTime from "./time/total";
+import MsgLengthAvgTime from "./time/lengthavg";
+
+import MsgTotalWeek from "./week/total";
+import MsgLengthAvgWeek from "./week/lengthavg";
 
 export interface GraphsProps {}
 
@@ -14,8 +18,12 @@ class Charts extends React.Component<GraphsProps, GraphsState> {
     return (
       <div id="charts" className="pt-4 pb-4">
         <div>
-          <MsgTimes />
-          <MsgsPerWeek />
+          <h3 className="text-center">Per Week</h3>
+          <MsgTotalWeek />
+          <MsgLengthAvgWeek />
+          <h3 className="text-center">Per Time</h3>
+          <MsgTotalTime />
+          <MsgLengthAvgTime />
         </div>
       </div>
     );

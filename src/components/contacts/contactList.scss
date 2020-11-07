@@ -1,5 +1,7 @@
 #contactList {
   .list-group-item {
+    word-break: break-word;
+    white-space: pre-wrap;
     &:not(.loading):first-child {
       padding: 0;
       input {
