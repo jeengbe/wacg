@@ -63,10 +63,10 @@ export default class MsgLengthAvgWeek extends React.Component<MsgLengthAvgWeekPr
                 month: "MMM YYYY",
               },
             },
-            ticks: {
-              // Next monday
-              max: moment().add(8 - moment().day(), "days"),
-            },
+            // ticks: {
+            //   // Next monday
+            //   max: moment().add(8 - moment().day(), "days"),
+            // },
           },
         ],
         yAxes: [

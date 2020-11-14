@@ -63,10 +63,10 @@ export default class MsgTotalWeek extends React.Component<MsgTotalWeekProps, Msg
                 month: "MMM YYYY",
               },
             },
-            ticks: {
-              // Next monday
-              max: moment().add(8 - moment().day(), "days"),
-            },
+            // ticks: {
+            //   // Next monday
+            //   max: moment().add(1 - moment().day(), "days"),
+            // },
           },
         ],
         yAxes: [

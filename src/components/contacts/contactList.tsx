@@ -102,7 +102,7 @@ class ContactList extends React.Component<ContactListProps, ContactListState> {
       .sort((a, b) => a.shown ? -1 : b.shown ? 1 : 0)
       .map(con => (
         <li key={con.jid} className={"list-group-item" + (con.shown ? " active" : "")} onClick={() => this.toggleShown(con.jid, con.type)}>
-          {con.displayName}
+          {con.displayName}{con.type === "group" && <span className="float-right small">Group</span>}
           <br />
           <p className="text-secondard small">{con.info}</p>
         </li>
