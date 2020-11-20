@@ -1,17 +1,15 @@
-import Chart, { ChartDataSets, ChartPoint } from "chart.js";
-import "chartjs-plugin-zoom";
-import moment from "moment";
+import Chart, { ChartDataSets } from "chart.js";
 import React from "react";
 import { EE, URL_BASE } from "../../..";
 import { IContactData } from "../../contacts/contactList";
 
-export interface MsgLengthAvgWeekProps {}
+export interface MsgEmojisAvgTimeProps {}
 
-export interface MsgLengthAvgWeekState {
+export interface MsgEmojisAvgTimeState {
   date: String;
 }
 
-export default class MsgLengthAvgWeek extends React.Component<MsgLengthAvgWeekProps, MsgLengthAvgWeekState> {
+export default class MsgEmojisAvgTime extends React.Component<MsgEmojisAvgTimeProps, MsgEmojisAvgTimeState> {
   ref: React.RefObject<HTMLCanvasElement>;
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
@@ -22,7 +20,7 @@ export default class MsgLengthAvgWeek extends React.Component<MsgLengthAvgWeekPr
     options: {
       title: {
         display: true,
-        text: "Average message length",
+        text: "Average emojis per message",
       },
       spanGaps: false,
       // animation: {
@@ -36,18 +34,10 @@ export default class MsgLengthAvgWeek extends React.Component<MsgLengthAvgWeekPr
       tooltips: {
         mode: "index",
         callbacks: {
-          title: (item, data) => {
-            const start = moment(item[0].xLabel, "MMM DD, YYYY, h:mm:ss a")
-              .format("DD.MM.YYYY");
-            const end = moment(start, "DD.MM.YYYY")
-              .add(6, "days")
-              .format("DD.MM.YYYY");
-            return start + " - " + end;
-          },
           label: (item, data) => {
             if (item.datasetIndex > 0) {
               let tooltip = "";
-              tooltip += " " + data.datasets[item.datasetIndex].label + ": " + item.value + " Characters";
+              tooltip += " " + data.datasets[item.datasetIndex].label + ": " + item.value + " emojis";
               // tooltip += " (" + Math.floor(tooltipItem.y / data.datasets[0].) * 100 + "%)";
               return tooltip;
             }
@@ -57,21 +47,6 @@ export default class MsgLengthAvgWeek extends React.Component<MsgLengthAvgWeekPr
         },
       },
       scales: {
-        xAxes: [
-          {
-            type: "time",
-            time: {
-              displayFormats: {
-                day: "DD.MM.YYYY",
-                month: "MMM YYYY",
-              },
-            },
-            // ticks: {
-            //   // Next monday
-            //   max: moment().add(8 - moment().day(), "days"),
-            // },
-          },
-        ],
         yAxes: [
           {
             ticks: {
@@ -79,20 +54,6 @@ export default class MsgLengthAvgWeek extends React.Component<MsgLengthAvgWeekPr
             },
           },
         ],
-      },
-      plugins: {
-        zoom: {
-          pan: {
-            enabled: true,
-            mode: "x",
-            speed: 20,
-          },
-          zoom: {
-            enabled: true,
-            mode: "x",
-            sensitivity: 3,
-          },
-        },
       },
     },
     data: {
@@ -104,18 +65,25 @@ export default class MsgLengthAvgWeek extends React.Component<MsgLengthAvgWeekPr
           fill: true,
           pointRadius: 2,
           pointHoverRadius: 2,
+          data: new Array(24).fill(0),
         },
       ],
+      labels: (() => {
+        const labels = [];
+        for (let h = 0; h <= 24; h++) {
+          labels.push(String(h).padStart(2, "0") + ":00");
+        }
+        return labels;
+      })(),
     },
   };
 
-  constructor(props: MsgLengthAvgWeekState) {
+  constructor(props: MsgEmojisAvgTimeProps) {
     super(props);
     this.ref = React.createRef();
     this.state = {
       date: null,
     };
-
     EE.on("add-jid", (jid: string, type: IContactData["type"]) => {
       (async () => {
         /*
@@ -125,7 +93,7 @@ export default class MsgLengthAvgWeek extends React.Component<MsgLengthAvgWeekPr
         body.append("jid",  jid);
         body.append("type", type);
         body.append("sets", this.config.data.datasets.length.toString());
-        const r = await fetch(URL_BASE + "MsgLengthAvgWeek", {
+        const r = await fetch(URL_BASE + "MsgEmojisAvgTime", {
           method: "POST",
           body: body,
         });
@@ -135,33 +103,25 @@ export default class MsgLengthAvgWeek extends React.Component<MsgLengthAvgWeekPr
           date: string;
         } = await r.json();
 
-        data.datasets.forEach(set => (set["jid"] = jid));
+        data.datasets.forEach(set => set["jid"] = jid);
+        data.datasets.forEach(set => set.data.push(set.data[0] as any))
         this.config.data.datasets.push(...data.datasets);
-
         let totalData: { [key: number]: number[] } = {};
 
         this.config.data.datasets.slice(1).forEach((set: Chart.ChartDataSets) => {
-          set.data.forEach(value => {
-            value = value as ChartPoint;
-            totalData[value.x] = totalData[value.x] || [];
-            totalData[value.x].push(value.y);
+          set.data.forEach((value, index) => {
+            totalData[index] = totalData[index] || [];
+            totalData[index].push(value);
           });
         });
 
-        const sortedData = {};
-        Object.keys(totalData)
-          .sort()
-          .forEach(key => (sortedData[key] = totalData[key]));
-
         let total = [];
-        for (const key in sortedData) {
-          total.push({
-            x: parseInt(key),
-            y: sortedData[key].length === 0 ? 0 : sortedData[key].reduce((a, b) => a + b, 0) / sortedData[key].length,
-          });
+        for (const key in totalData) {
+          total[key] = totalData[key].length === 0 ? 0 : totalData[key].reduce((a, b) => a + b, 0) / totalData[key].length;
         }
 
         this.config.data.datasets[0].data = total;
+
         this.chart["source"] = data["date"];
         this.chart.update();
 
@@ -173,38 +133,18 @@ export default class MsgLengthAvgWeek extends React.Component<MsgLengthAvgWeekPr
     EE.on("remove-jid", jid => {
       this.config.data.datasets = this.config.data.datasets.filter(set => set["jid"] !== jid);
 
-      let minKey = Infinity;
-
-      this.config.data.datasets.slice(1).forEach((set, index) => {
-        if (index > 0) {
-          set.data.forEach(value => {
-            value = value as ChartPoint;
-            minKey = Math.min(minKey, value.x);
-          });
-        }
-      });
-
       let totalData: { [key: number]: number[] } = {};
 
-      this.config.data.datasets.forEach((set: Chart.ChartDataSets) => {
-        set.data.forEach(value => {
-          value = value as ChartPoint;
-          totalData[value.x] = totalData[value.x] || [];
-          totalData[value.x].push(value.y);
+      this.config.data.datasets.slice(1).forEach((set: Chart.ChartDataSets) => {
+        set.data.forEach((value, index) => {
+          totalData[index] = totalData[value] || [];
+          totalData[index].push(value);
         });
       });
 
-      const sortedData = {};
-      Object.keys(totalData)
-        .sort()
-        .forEach(key => (sortedData[key] = totalData[key]));
-
       let total = [];
-      for (const key in sortedData) {
-        total.push({
-          x: parseInt(key),
-          y: sortedData[key].length === 0 ? 0 : sortedData[key].reduce((a, b) => a + b, 0) / sortedData[key].length,
-        });
+      for (const key in totalData) {
+        total[key] = totalData[key].length === 0 ? 0 : totalData[key].reduce((a, b) => a + b, 0) / totalData[key].length;
       }
 
       this.config.data.datasets[0].data = total;
